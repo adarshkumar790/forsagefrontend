@@ -418,127 +418,196 @@ const contractABI = [
 ];
 
 const contractAddress = '0xa955d1c9d2B7D1C187613e5473eeC2aa1dc5f4c8';
+
 function App() {
-    const [web3, setWeb3] = useState(null);
-    const [account, setAccount] = useState(null);
-    const [contract, setContract] = useState(null);
-    const [referrerAddress, setReferrerAddress] = useState('');
-    const [referredUsers, setReferredUsers] = useState([]);
-  
-    useEffect(() => {
-      const initWeb3 = async () => {
-        if (window.ethereum) {
-          try {
-            const web3Instance = new Web3(window.ethereum);
-            setWeb3(web3Instance);
-  
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-            setAccount(accounts[0]);
-  
-            const contractInstance = new web3Instance.eth.Contract(contractABI, contractAddress);
-            setContract(contractInstance);
-  
-            console.log('Web3, account, and contract successfully loaded.');
-          } catch (error) {
-            console.error('Error loading Web3, account, or contract:', error);
-          }
-        } else {
-          alert('Please install MetaMask!');
+  const [web3, setWeb3] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [contract, setContract] = useState(null);
+  const [userAddress, setUserAddress] = useState('');
+  const [referrerAddress, setReferrerAddress] = useState('');
+  const [userBalance, setUserBalance] = useState('0');
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [matrix, setMatrix] = useState(1);
+  const [level, setLevel] = useState(1);
+  const [userDetails, setUserDetails] = useState(null);
+
+  useEffect(() => {
+    const initWeb3 = async () => {
+      if (window.ethereum) {
+        try {
+          const web3Instance = new Web3(window.ethereum);
+          setWeb3(web3Instance);
+
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          setAccount(accounts[0]);
+
+          const contractInstance = new web3Instance.eth.Contract(contractABI, contractAddress);
+          setContract(contractInstance);
+
+          console.log('Web3, account, and contract successfully loaded.');
+        } catch (error) {
+          console.error('Error loading Web3, account, or contract:', error);
         }
-      };
-  
-      initWeb3();
-    }, []);
-  
-    const fetchReferredUsers = async () => {
-      if (!web3 || !contract || !account) {
-        alert('Web3, contract, or account not loaded');
-        console.error('Web3:', web3);
-        console.error('Contract:', contract);
-        console.error('Account:', account);
-        return;
-      }
-  
-      try {
-        const users = await fetchReferredUsersFunc(web3, contract, referrerAddress);
-        setReferredUsers(users);
-      } catch (error) {
-        console.error('Error fetching referred users:', error);
-        alert('Failed to fetch referred users');
+      } else {
+        alert('Please install MetaMask!');
       }
     };
-  
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-800 text-white">
-        <h1 className="text-3xl font-bold mb-8">SmartMatrixForsage Registration</h1>
-        
-        <div className="mb-4">
-          <label className="block text-lg mb-2">
-            Referrer Address:
-            <input
-              className="mt-1 block w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              type="text"
-              value={referrerAddress}
-              onChange={e => setReferrerAddress(e.target.value)}
-              placeholder="Enter referrer address"
-            />
-          </label>
-        </div>
-        
-        <button
-          onClick={fetchReferredUsers}
-          className="px-6 py-2 bg-yellow-600 rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-4"
-        >
-          Show Referred Users
-        </button>
-  
-        {referredUsers.length > 0 && (
-          <div className="mt-4">
-            <h2 className="text-2xl font-bold mb-4">Referred Users</h2>
-            <ul>
-              {referredUsers.map((user, index) => (
-                <li key={index} className="mb-2">
-                  <p>Address: {user.address}</p>
-                  <p>User ID: {user.id}</p>
-                  <p>Partners Count: {user.partnersCount}</p>
-                </li>
-              ))}
-            </ul>
+
+    initWeb3();
+  }, []);
+
+  useEffect(() => {
+    if (web3 && contract && account) {
+      const loadUserDetails = async () => {
+        const balance = await web3.eth.getBalance(account);
+        setUserBalance(web3.utils.fromWei(balance, 'ether'));
+
+        const registered = await contract.methods.isUserExists(account).call();
+        setIsRegistered(registered);
+
+        if (registered) {
+          const user = await contract.methods.users(account).call();
+          setUserDetails(user);
+        }
+      };
+
+      loadUserDetails();
+    }
+  }, [web3, contract, account]);
+
+  const register = async () => {
+    if (!web3 || !contract || !account) {
+      alert('Web3, contract, or account not loaded');
+      console.error('Web3:', web3);
+      console.error('Contract:', contract);
+      console.error('Account:', account);
+      return;
+    }
+
+    try {
+      await contract.methods.registrationExt(referrerAddress).send({
+        from: account,
+        value: web3.utils.toWei('0.05', 'ether')
+      });
+      alert('Registration successful');
+    } catch (error) {
+      console.error('Error during registration:', error);
+      alert('Registration failed');
+    }
+  };
+
+  const buyNewLevel = async () => {
+    if (!web3 || !contract || !account) {
+      alert('Web3, contract, or account not loaded');
+      console.error('Web3:', web3);
+      console.error('Contract:', contract);
+      console.error('Account:', account);
+      return;
+    }
+
+    try {
+      console.log('Attempting to buy new level:', { matrix, level });
+      console.log('Using account:', account);
+
+      const levelPrice = await contract.methods.levelPrice(level).call();
+      console.log('Level price in Wei:', levelPrice);
+
+      await contract.methods.buyNewLevel(matrix, level).send({
+        from: account,
+        value: levelPrice
+      });
+
+      alert('Level purchase successful');
+    } catch (error) {
+      console.error('Error during level purchase:', error);
+      alert('Level purchase failed');
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-800 text-white">
+      <h1 className="text-3xl font-bold mb-8">SmartMatrixForsage Registration</h1>
+      <div className="mb-4">
+        <label className="block text-lg mb-2">
+          User Address:
+          <input
+            className="mt-1 block w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            type="text"
+            value={userAddress}
+            onChange={e => setUserAddress(e.target.value)}
+            placeholder="Enter your address"
+          />
+        </label>
+      </div>
+      <div className="mb-4">
+        <label className="block text-lg mb-2">
+          Referrer Address:
+          <input
+            className="mt-1 block w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            type="text"
+            value={referrerAddress}
+            onChange={e => setReferrerAddress(e.target.value)}
+            placeholder="Enter referrer address"
+          />
+        </label>
+      </div>
+      <button
+        onClick={register}
+        className="px-6 py-2 bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+      >
+        Register
+      </button>
+
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold mb-4">User Info</h2>
+        <p>Account: {account}</p>
+        <p>Balance: {userBalance.slice(0,5)} ETH</p>
+        <p>Registered: {isRegistered ? 'Yes' : 'No'}</p>
+        {userDetails && (
+          <div>
+            <p>User ID: {userDetails.id}</p>
+            <p>Referrer: {userDetails.referrer}</p>
+            <p>Partners Count: {userDetails.partnersCount}</p>
           </div>
         )}
       </div>
-    );
-  }
-  
-  export default App;
-  
-  // Helper function to fetch referred users
-  async function fetchReferredUsersFunc(web3, contract, referrerAddress) {
-    try {
-      const lastUserId = await contract.methods.lastUserId().call();
-      console.log('Last User ID:', lastUserId);
-  
-      const referredUsers = [];
-  
-      for (let id = 1; id <= lastUserId; id++) {
-        const address = await contract.methods.idToAddress(id).call();
-        const user = await contract.methods.users(address).call();
-        console.log('User ID:', id, 'Address:', address, 'User:', user);
-  
-        if (user.referrer.toLowerCase() === referrerAddress.toLowerCase()) {
-          referredUsers.push({
-            address: address,
-            id: user.id,
-            referrer: user.referrer,
-            partnersCount: user.partnersCount
-          });
-        }
-      }
-  
-      console.log('Referred Users:', referredUsers);
-      return referredUsers;
-    } catch (error) {
-      console.error('Error fetching referred users:', error);
-      throw error;
-    }
-  }
+
+      <div className="mb-4">
+        <label className="block text-lg mb-2">
+          Matrix:
+          <input
+            className="mt-1 block w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            type="number"
+            value={matrix}
+            max={2}
+            min={1}
+            onChange={e => setMatrix(e.target.value)}
+            placeholder="Enter matrix"
+          />
+        </label>
+      </div>
+      <div className="mb-4">
+        <label className="block text-lg mb-2">
+          Level:
+          <input
+            className="mt-1 block w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            type="number"
+            value={level}
+            onChange={e => setLevel(e.target.value)}
+            placeholder="Enter level"
+            max={12}
+            min={1}
+          />
+        </label>
+      </div>
+      <button
+        onClick={buyNewLevel}
+        className="px-6 py-2 bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+      >
+        Buy New Level
+      </button>
+    </div>
+  );
+}
+
+export default App;
