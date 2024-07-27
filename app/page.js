@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Web3 from 'web3';
+import BN from 'bn.js';
 
 const contractABI = [
   {
@@ -494,7 +495,7 @@ function App() {
       alert('Registration failed');
     }
   };
-
+  
   const buyNewLevel = async () => {
     if (!web3 || !contract || !account) {
       alert('Web3, contract, or account not loaded');
@@ -503,26 +504,48 @@ function App() {
       console.error('Account:', account);
       return;
     }
-
+  
     try {
       console.log('Attempting to buy new level:', { matrix, level });
       console.log('Using account:', account);
-
-      const levelPrice = await contract.methods.levelPrice(level).call();
-      console.log('Level price in Wei:', levelPrice);
-
-      await contract.methods.buyNewLevel(matrix, level).send({
+  
+      const matrixInt = parseInt(matrix, 10);
+      const levelInt = parseInt(level, 10);
+  
+      if (matrixInt < 1 || matrixInt > 2) {
+        throw new Error('Matrix value is out of range. It should be 1 or 2.');
+      }
+      if (levelInt < 1 || levelInt > 12) {
+        throw new Error('Level value is out of range. It should be between 1 and 12.');
+      }
+  
+      const levelPriceWei = await contract.methods.levelPrice(levelInt).call();
+      console.log('Level price returned by contract (Wei):', levelPriceWei);
+  
+      const levelPriceBN = new BN(levelPriceWei);
+      if (!levelPriceBN) {
+        throw new Error('Invalid level price format.');
+      }
+  
+      await contract.methods.buyNewLevel(matrixInt, levelInt).send({
         from: account,
-        value: levelPrice
+        value: levelPriceBN.toString(),
+        gas: 3000000, // Increase gas limit if necessary
+        gasPrice: web3.utils.toWei('50', 'gwei') // Increase gas price
       });
-
+  
       alert('Level purchase successful');
     } catch (error) {
-      console.error('Error during level purchase:', error);
-      alert('Level purchase failed');
+      if (error.code === 4001) {
+        alert('Transaction was rejected by the user.');
+      } else {
+        console.error('Error during level purchase:', error);
+        alert('Level purchase failed: ' + error.message);
+      }
     }
   };
-
+  
+  
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-800 text-white">
       <h1 className="text-3xl font-bold mb-8">SmartMatrixForsage Registration</h1>
@@ -581,7 +604,7 @@ function App() {
             max={2}
             min={1}
             onChange={e => setMatrix(e.target.value)}
-            placeholder="Enter matrix"
+            placeholder="Enter matrix1 or matrix2"
           />
         </label>
       </div>
@@ -593,7 +616,7 @@ function App() {
             type="number"
             value={level}
             onChange={e => setLevel(e.target.value)}
-            placeholder="Enter level"
+            placeholder="Enter level between 1 and 12"
             max={12}
             min={1}
           />
