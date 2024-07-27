@@ -530,8 +530,8 @@ function App() {
       await contract.methods.buyNewLevel(matrixInt, levelInt).send({
         from: account,
         value: levelPriceBN.toString(),
-        gas: 3000000, // Increase gas limit if necessary
-        gasPrice: web3.utils.toWei('50', 'gwei') // Increase gas price
+        gas: 3000000, 
+        gasPrice: web3.utils.toWei('50', 'gwei') 
       });
   
       alert('Level purchase successful');
